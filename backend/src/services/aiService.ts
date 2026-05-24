@@ -42,13 +42,10 @@ async function extractTextFromFile(fileUrl: string): Promise<string | null> {
     const magic = fileBuffer.subarray(0, 4).toString("ascii");
     if (magic === "%PDF") {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParseModule = require("pdf-parse");
-      const pdfParseFn: (buf: Buffer) => Promise<{ text: string }> =
-        typeof pdfParseModule === "function"
-          ? pdfParseModule
-          : (pdfParseModule.default ?? pdfParseModule);
-      const data = await pdfParseFn(fileBuffer);
-      const text = data.text?.trim();
+      const { PDFParse } = require("pdf-parse") as { PDFParse: new (opts: { data: Buffer }) => { getText: () => Promise<{ text: string }> } };
+      const parser = new PDFParse({ data: fileBuffer });
+      const result = await parser.getText();
+      const text = result.text?.trim();
       if (!text) return null;
       return text.slice(0, 10000);
     }

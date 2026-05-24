@@ -302,10 +302,10 @@ export default function OutputPage() {
           ) : !paper ? (
             <GeneratingState status={status} />
           ) : (
-            <div style={{ display: "flex", gap: "24px", alignItems: "flex-start" }}>
+            <div className="paper-layout" style={{ display: "flex", gap: "24px", alignItems: "flex-start" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 {variants.length > 0 && (
-                  <div className="mb-6">
+                  <div className="no-print mb-6">
                     <VariantGrid variants={variants} />
                   </div>
                 )}
@@ -333,7 +333,7 @@ export default function OutputPage() {
               </div>
 
               {bloomsDistribution && (
-                <div style={{ width: "220px", flexShrink: 0, position: "sticky", top: "24px" }}>
+                <div className="no-print" style={{ width: "220px", flexShrink: 0, position: "sticky", top: "24px" }}>
                   <BloomsPanel
                     distribution={bloomsDistribution}
                     onRebalance={handleRebalance}

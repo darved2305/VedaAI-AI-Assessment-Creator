@@ -136,13 +136,19 @@ a {
   nav,
   .mobile-top-bar,
   .mobile-bottom-nav,
-  .action-bar {
+  .action-bar,
+  .no-print {
     display: none !important;
   }
 
   /* Reset layout offsets imposed by the sidebar */
   .lg\:ml-\[var\(--sidebar-offset\)\] {
     margin-left: 0 !important;
+  }
+
+  /* Make the paper fill the full print width */
+  .paper-layout {
+    display: block !important;
   }
 
   .question-paper-wrapper {

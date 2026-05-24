@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Wand2 } from "lucide-react";
 import type { Question, QuestionVersion } from "@/store/assignmentStore";
-import BloomsBadge from "./BloomsBadge";
 import RefinePanel from "./RefinePanel";
 
 const DIFFICULTY_COLOR: Record<string, string> = {
@@ -58,11 +57,6 @@ export default function QuestionCard({
             >
               [{question.difficulty}]
             </span>{" "}
-            {question.bloomsLevel && (
-              <>
-                <BloomsBadge level={question.bloomsLevel} small />{" "}
-              </>
-            )}
             {isRefining && streamBuffer ? (
               <span style={{ opacity: 0.6, fontStyle: "italic" }}>
                 {streamBuffer}
@@ -83,6 +77,7 @@ export default function QuestionCard({
             )}
           </div>
           <button
+            className="no-print"
             onClick={() => setShowRefine((v) => !v)}
             disabled={isRefining}
             title="Refine this question"
@@ -110,6 +105,7 @@ export default function QuestionCard({
       </div>
 
       {showRefine && (
+        <div className="no-print">
         <RefinePanel
           question={question}
           assignmentId={assignmentId}
@@ -120,6 +116,7 @@ export default function QuestionCard({
           onRefine={onRefine}
           onRevert={onRevert}
         />
+        </div>
       )}
     </div>
   );
