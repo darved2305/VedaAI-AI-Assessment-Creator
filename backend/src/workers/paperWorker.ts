@@ -4,7 +4,8 @@ import mongoose from "mongoose";
 import { Assignment } from "../models/Assignment";
 import { Paper } from "../models/Paper";
 import { generatePaper } from "../services/aiService";
-import { broadcastJobUpdate } from "../websocket/wsManager";
+import { computeBloomsDistribution } from "../lib/blooms";
+import { broadcast, broadcastJobUpdate } from "../websocket/wsManager";
 import { connectDB } from "../config/db";
 import { PAPER_JOB_NAME } from "../queues/paperQueue";
 
@@ -30,6 +31,9 @@ export function startPaperWorker(): Worker {
 
       const paperData = await generatePaper(assignment, assignment.fileUrl);
 
+      const allQuestions = paperData.sections.flatMap((s) => s.questions);
+      const bloomsDistribution = computeBloomsDistribution(allQuestions);
+
       const paper = await Paper.create({
         assignmentId: new mongoose.Types.ObjectId(assignmentId),
         schoolName: process.env.SCHOOL_NAME ?? "Delhi Public School, Sector-4, Bokaro",
@@ -39,10 +43,10 @@ export function startPaperWorker(): Worker {
         maxMarks: paperData.maxMarks,
         sections: paperData.sections,
         answerKey: paperData.answerKey,
+        bloomsDistribution,
         message: paperData.message,
       });
 
-      // Only auto-generate title if the user left it as the placeholder
       const autoTitle = `${paperData.subject} – ${paperData.className} Assignment`;
       const finalTitle =
         !assignment.title || assignment.title === "New Assignment"
@@ -60,6 +64,12 @@ export function startPaperWorker(): Worker {
         assignmentId,
         status: "done",
         paperId: (paper._id as mongoose.Types.ObjectId).toString(),
+      });
+
+      broadcast({
+        type: "BLOOMS_CLASSIFIED",
+        assignmentId,
+        distribution: bloomsDistribution,
       });
     },
     { connection, concurrency: 3 }

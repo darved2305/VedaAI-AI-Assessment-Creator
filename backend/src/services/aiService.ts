@@ -2,7 +2,9 @@ import Groq from "groq-sdk";
 import fs from "fs";
 import path from "path";
 import type { IAssignment } from "../models/Assignment";
-import type { ISection } from "../models/Paper";
+import type { ISection, IQuestion } from "../models/Paper";
+import { classifyBlooms } from "../lib/blooms";
+import type { BloomsDistribution } from "../types/domain";
 
 let groqClient: Groq | null = null;
 
@@ -22,6 +24,7 @@ export interface GeneratedPaperData {
   maxMarks: number;
   sections: ISection[];
   answerKey: string[];
+  bloomsDistribution?: BloomsDistribution;
   message: string;
 }
 
@@ -36,10 +39,8 @@ async function extractTextFromFile(fileUrl: string): Promise<string | null> {
 
     const fileBuffer = fs.readFileSync(filePath);
 
-    // Detect PDF by magic bytes (%PDF)
     const magic = fileBuffer.subarray(0, 4).toString("ascii");
     if (magic === "%PDF") {
-      // pdf-parse v2 uses ESM default export; handle both CJS and ESM interop
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const pdfParseModule = require("pdf-parse");
       const pdfParseFn: (buf: Buffer) => Promise<{ text: string }> =
@@ -209,7 +210,6 @@ export async function generatePaper(assignment: IAssignment, fileUrl?: string): 
     }
   }
 
-  // Ensure all questions have sequential numbering
   let questionNumber = 1;
   for (const section of parsed.sections) {
     for (const question of section.questions) {
@@ -217,10 +217,8 @@ export async function generatePaper(assignment: IAssignment, fileUrl?: string): 
     }
   }
 
-  // Verify answer key length matches question count
   const totalQuestions = parsed.sections.reduce((sum, s) => sum + s.questions.length, 0);
   if (!parsed.answerKey || parsed.answerKey.length !== totalQuestions) {
-    // Pad or trim answer key if needed
     const existing = parsed.answerKey ?? [];
     parsed.answerKey = Array.from({ length: totalQuestions }, (_, i) =>
       existing[i] ?? "Refer to textbook"
@@ -235,5 +233,139 @@ export async function generatePaper(assignment: IAssignment, fileUrl?: string): 
     parsed.timeAllowed = inferTimeAllowed(parsed.maxMarks);
   }
 
+  const allQuestions: IQuestion[] = parsed.sections.flatMap((s) => s.questions);
+  try {
+    const classified = await classifyBlooms(allQuestions);
+    let qi = 0;
+    for (const section of parsed.sections) {
+      for (let i = 0; i < section.questions.length; i++) {
+        section.questions[i] = classified[qi++] as IQuestion;
+      }
+    }
+  } catch (err) {
+    console.warn("Bloom's classification failed (non-fatal):", (err as Error).message);
+  }
+
   return parsed;
+}
+
+export async function refineQuestion(params: {
+  originalQuestion: {
+    text: string;
+    difficulty: "Easy" | "Moderate" | "Challenging";
+    marks: number;
+    type: string;
+    number: number;
+    options?: string[];
+  };
+  instruction: string;
+  sectionContext: string;
+}): Promise<{
+  text: string;
+  difficulty: "Easy" | "Moderate" | "Challenging";
+  marks: number;
+  type: string;
+  options?: string[];
+  changeReason: string;
+}> {
+  const groq = getGroq();
+
+  const prompt = `You are rewriting a single exam question for a CBSE paper.
+Section context: ${params.sectionContext}
+Original question: ${params.originalQuestion.text}
+Original difficulty: ${params.originalQuestion.difficulty}, Marks: ${params.originalQuestion.marks}
+Teacher instruction: ${params.instruction}
+
+Respond ONLY with valid JSON matching this exact schema:
+{
+  "text": "rewritten question text",
+  "difficulty": "Easy|Moderate|Challenging",
+  "marks": ${params.originalQuestion.marks},
+  "type": "${params.originalQuestion.type}",
+  "changeReason": "one sentence explaining what changed"
+}
+Do not include markdown, backticks, or any text outside the JSON.`;
+
+  const response = await groq.chat.completions.create({
+    model: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.5,
+    max_tokens: 800,
+    response_format: { type: "json_object" },
+  });
+
+  const raw = response.choices[0]?.message?.content ?? "{}";
+  return JSON.parse(raw) as {
+    text: string;
+    difficulty: "Easy" | "Moderate" | "Challenging";
+    marks: number;
+    type: string;
+    options?: string[];
+    changeReason: string;
+  };
+}
+
+export async function refineQuestionStreaming(params: {
+  originalQuestion: {
+    text: string;
+    difficulty: "Easy" | "Moderate" | "Challenging";
+    marks: number;
+    type: string;
+    number: number;
+    options?: string[];
+  };
+  instruction: string;
+  sectionContext: string;
+  onToken: (token: string) => void;
+}): Promise<{
+  text: string;
+  difficulty: "Easy" | "Moderate" | "Challenging";
+  marks: number;
+  type: string;
+  options?: string[];
+  changeReason: string;
+}> {
+  const groq = getGroq();
+
+  const prompt = `You are rewriting a single exam question for a CBSE paper.
+Section context: ${params.sectionContext}
+Original question: ${params.originalQuestion.text}
+Original difficulty: ${params.originalQuestion.difficulty}, Marks: ${params.originalQuestion.marks}
+Teacher instruction: ${params.instruction}
+
+Respond ONLY with valid JSON matching this exact schema:
+{
+  "text": "rewritten question text",
+  "difficulty": "Easy|Moderate|Challenging",
+  "marks": ${params.originalQuestion.marks},
+  "type": "${params.originalQuestion.type}",
+  "changeReason": "one sentence explaining what changed"
+}
+Do not include markdown, backticks, or any text outside the JSON.`;
+
+  const stream = await groq.chat.completions.create({
+    model: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.5,
+    max_tokens: 800,
+    stream: true,
+  });
+
+  let buffer = "";
+  for await (const chunk of stream) {
+    const token = chunk.choices[0]?.delta?.content ?? "";
+    if (token) {
+      buffer += token;
+      params.onToken(token);
+    }
+  }
+
+  return JSON.parse(buffer) as {
+    text: string;
+    difficulty: "Easy" | "Moderate" | "Challenging";
+    marks: number;
+    type: string;
+    options?: string[];
+    changeReason: string;
+  };
 }
