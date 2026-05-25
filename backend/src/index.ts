@@ -19,7 +19,10 @@ import variantRoutes from "./routes/variants";
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
 
-app.use(cors({ origin: process.env.FRONTEND_URL ?? "http://localhost:3000", credentials: true }));
+const corsOrigins = (process.env.FRONTEND_URL ?? "http://localhost:3000")
+  .split(",")
+  .map((o) => o.trim());
+app.use(cors({ origin: corsOrigins, credentials: true }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 

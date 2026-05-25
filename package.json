@@ -1,0 +1,13 @@
+{
+  "name": "vedaai-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VedaAI — AI Assessment Creator (Next.js frontend + Express backend)",
+  "scripts": {
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm run build",
+    "lint:frontend": "cd frontend && npm run lint"
+  }
+}
