@@ -40,3 +40,6 @@ Thumbs.db
 
 # ─── Old project folder ──────────────────────────────────────────────────────
 vedaai/
+
+# ─── Deploy docs with secrets — keep local only ──────────────────────────────
+BACKEND_DEPLOY.md
