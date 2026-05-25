@@ -1,5 +1,5 @@
 # ── Build Stage ───────────────────────────────────────────────────────────────
-FROM node:20 AS builder
+FROM node:22 AS builder
 
 WORKDIR /app
 
@@ -10,11 +10,18 @@ COPY . .
 RUN npm run build
 
 # ── Production Stage ──────────────────────────────────────────────────────────
-FROM node:20-slim
+FROM node:22-slim
 
-# Install Chromium and dependencies for Puppeteer
+# Prevent Puppeteer from downloading its own browser during npm install
+ENV PUPPETEER_SKIP_DOWNLOAD=true \
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+
+# Install Chromium, unzip (required by npm/puppeteer), and other deps
 RUN apt-get update && apt-get install -y \
     chromium \
+    unzip \
+    ca-certificates \
     fonts-liberation \
     libappindicator3-1 \
     libasound2 \
@@ -42,9 +49,7 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/uploads ./uploads
 
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
-    NODE_ENV=production \
+ENV NODE_ENV=production \
     PORT=4000
 
 EXPOSE 4000
