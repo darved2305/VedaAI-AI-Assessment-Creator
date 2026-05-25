@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: vedaai-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 4000
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_DB_NAME
+        value: vedaai
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: SCHOOL_NAME
+        value: Delhi Public School
+      # Secrets — set these in Render dashboard after first deploy
+      - key: FRONTEND_URL
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
